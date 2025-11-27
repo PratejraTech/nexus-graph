@@ -1,0 +1,104 @@
+version: '3.8'
+
+services:
+  # ---------------------------------------------------------------------------
+  # Nexus API Service (FastAPI Backend)
+  # ---------------------------------------------------------------------------
+  nexus-api:
+    container_name: nexus-api
+    build: 
+      context: .
+      # Assumes a Dockerfile exists for the Python/FastAPI backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - HOST=0.0.0.0
+      # Database Connections
+      - MEMGRAPH_URI=bolt://nexus-memgraph:7687
+      - CHROMADB_HOST=nexus-chroma
+      - CHROMADB_PORT=8000
+      - POSTGRES_SERVER=nexus-postgres
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=nexus_secure_password
+      - POSTGRES_DB=nexus_rag
+      # API Keys (passed from host environment)
+      - GOOGLE_API_KEY=${GOOGLE_API_KEY}
+      - LANGCHAIN_TRACING_V2=true
+      - LANGCHAIN_API_KEY=${LANGCHAIN_API_KEY}
+    depends_on:
+      - memgraph
+      - chromadb
+      - postgres
+    networks:
+      - nexus-network
+    restart: on-failure
+
+  # ---------------------------------------------------------------------------
+  # Graph Database: Memgraph Platform (Core + Lab + MAGE)
+  # ---------------------------------------------------------------------------
+  memgraph:
+    image: memgraph/memgraph-platform:latest
+    container_name: nexus-memgraph
+    ports:
+      - "7687:7687" # Bolt Protocol (Graph interaction)
+      - "3000:3000" # Memgraph Lab (Visual UI)
+      - "7444:7444" # Logs and Management
+    environment:
+      - MEMGRAPH_USER=memgraph
+      - MEMGRAPH_PASSWORD=memgraph
+    volumes:
+      - memgraph_data:/var/lib/memgraph
+      - memgraph_log:/var/log/memgraph
+    networks:
+      - nexus-network
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Vector Database: ChromaDB
+  # ---------------------------------------------------------------------------
+  chromadb:
+    image: chromadb/chroma:latest
+    container_name: nexus-chroma
+    ports:
+      - "8001:8000" # Host Port 8001 -> Container Port 8000
+    environment:
+      - IS_PERSISTENT=TRUE
+      - ANONYMIZED_TELEMETRY=FALSE
+    volumes:
+      - chroma_data:/chroma/chroma
+    networks:
+      - nexus-network
+    restart: always
+
+  # ---------------------------------------------------------------------------
+  # Relational Database: PostgreSQL (Entity Metadata)
+  # ---------------------------------------------------------------------------
+  postgres:
+    image: postgres:15-alpine
+    container_name: nexus-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=nexus
+      - POSTGRES_PASSWORD=nexus_secure_password
+      - POSTGRES_DB=nexus_rag
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - nexus-network
+    restart: always
+
+# -----------------------------------------------------------------------------
+# Networks & Volumes
+# -----------------------------------------------------------------------------
+networks:
+  nexus-network:
+    driver: bridge
+
+volumes:
+  memgraph_data:
+  memgraph_log:
+  chroma_data:
+  postgres_data:

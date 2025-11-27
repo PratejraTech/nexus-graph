@@ -1,0 +1,5 @@
+{
+  "name": "Nexus Indexer",
+  "description": "A futuristic control plane for the Nexus Agentic Graph-RAG system, featuring knowledge graph visualization, real-time RAG agent chat, and system observability.",
+  "requestFramePermissions": []
+}
